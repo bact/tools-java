@@ -67,25 +67,22 @@ public class SpdxToolsHelper {
 
 	static final String XML_INPUT_FACTORY_PROPERTY_KEY = "javax.xml.stream.XMLInputFactory";
 
-	static Map<String, SerFileType> EXT_TO_FILETYPE;
-	static {
-		HashMap<String, SerFileType> temp = new HashMap<>();
-		temp.put("spdx3.json", SerFileType.JSONLD);
-		temp.put("jsonld.json", SerFileType.JSONLD);
-		temp.put("jsonld", SerFileType.JSONLD);
-		temp.put("json", SerFileType.JSON);
-		temp.put("rdf.xml", SerFileType.RDFXML);
-		temp.put("rdf", SerFileType.RDFXML);
-		temp.put("xml", SerFileType.XML);
-		temp.put("xls", SerFileType.XLS);
-		temp.put("xlsx", SerFileType.XLSX);
-		temp.put("yaml", SerFileType.YAML);
-		temp.put("tag", SerFileType.TAG);
-		temp.put("spdx", SerFileType.TAG);
-		temp.put("yml", SerFileType.YAML);
-		temp.put("rdf.ttl", SerFileType.RDFTTL);
-		EXT_TO_FILETYPE = Collections.unmodifiableMap(temp);
-	}
+	static final Map<String, SerFileType> EXT_TO_FILETYPE = Map.ofEntries(
+			Map.entry("json", SerFileType.JSON),
+			Map.entry("jsonld", SerFileType.JSONLD),
+			Map.entry("jsonld.json", SerFileType.JSONLD),
+			Map.entry("spdx3.json", SerFileType.JSONLD),
+			Map.entry("rdf.ttl", SerFileType.RDFTTL),
+			Map.entry("rdf.xml", SerFileType.RDFXML),
+			Map.entry("rdf", SerFileType.RDFXML),
+			Map.entry("tag", SerFileType.TAG),
+			Map.entry("spdx", SerFileType.TAG),
+			Map.entry("xls", SerFileType.XLS),
+			Map.entry("xlsx", SerFileType.XLSX),
+			Map.entry("xml", SerFileType.XML),
+			Map.entry("yaml", SerFileType.YAML),
+			Map.entry("yml", SerFileType.YAML)
+	);
 
 	/**
 	 * Determine the appropriate in memory based model store which supports
