@@ -81,8 +81,7 @@ public class SpdxToolsHelper {
 			Map.entry("xlsx", SerFileType.XLSX),
 			Map.entry("xml", SerFileType.XML),
 			Map.entry("yaml", SerFileType.YAML),
-			Map.entry("yml", SerFileType.YAML)
-	);
+			Map.entry("yml", SerFileType.YAML));
 
 	/**
 	 * Determine the appropriate in memory based model store which supports
@@ -100,14 +99,16 @@ public class SpdxToolsHelper {
 			case JSON :
 				return new MultiFormatStore(new InMemSpdxStore(),
 						Format.JSON_PRETTY, Verbose.COMPACT);
-			case RDFXML : {
-				RdfStore rdfStore = new RdfStore();
-				rdfStore.setOutputFormat(OutputFormat.XML);
-				return rdfStore;
-			}
+			case JSONLD :
+				return new JsonLDStore(new InMemSpdxStore());
 			case RDFTTL : {
 				RdfStore rdfStore = new RdfStore();
 				rdfStore.setOutputFormat(OutputFormat.TURTLE);
+				return rdfStore;
+			}
+			case RDFXML : {
+				RdfStore rdfStore = new RdfStore();
+				rdfStore.setOutputFormat(OutputFormat.XML);
 				return rdfStore;
 			}
 			case TAG :
@@ -124,8 +125,6 @@ public class SpdxToolsHelper {
 			case YAML :
 				return new MultiFormatStore(new InMemSpdxStore(), Format.YAML,
 						Verbose.COMPACT);
-			case JSONLD :
-				return new JsonLDStore(new InMemSpdxStore());
 			default :
 				throw new InvalidSPDXAnalysisException("Unsupported file type: "
 						+ fileType + ".  Check back later.");
