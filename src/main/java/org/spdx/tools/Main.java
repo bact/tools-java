@@ -60,8 +60,25 @@ public class Main {
 		}
 	}
 	
+	/**
+	 * @return the file name of the jar this class was loaded from, falling back to
+	 * a default name if it can not be determined (e.g. running from a classes directory)
+	 */
+	private static String getJarName() {
+		try {
+			java.io.File jarFile = new java.io.File(Main.class.getProtectionDomain()
+					.getCodeSource().getLocation().toURI());
+			if (jarFile.getName().endsWith(".jar")) {
+				return jarFile.getName();
+			}
+		} catch (Exception e) {
+			// fall through to the default name below
+		}
+		return "spdx-tools-jar-with-dependencies.jar";
+	}
+
 	private static void usage() {
-		System.out.println("Usage: java -jar spdx-tools-jar-with-dependencies.jar <function> <parameters> \n"
+		System.out.println("Usage: java -jar " + getJarName() + " <function> <parameters> \n"
 						+ "function                 parameter                         example \n"
 						+ "------------------------------------------------------------------------------------------------------------------- \n"
 						+ "Convert         inputFile outputFile [fromType] [toType]   Examples/SPDXTagExample.tag TagToSpreadsheet.xls \n"
