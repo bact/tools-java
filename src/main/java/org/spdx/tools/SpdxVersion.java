@@ -119,8 +119,8 @@ public class SpdxVersion {
 	 * Compares two SPDX version strings.
 	 * @param versionA
 	 * @param versionB
-	 * @return negative if versionA < versionB, zero if equal, positive if
-	 *         versionA > versionB
+	 * @return negative if versionA &lt; versionB, zero if equal,
+	 *         positive if versionA &gt; versionB
 	 */
 	public static int compareVersions(String versionA, String versionB) {
 		if (versionA == null || versionB == null) {
