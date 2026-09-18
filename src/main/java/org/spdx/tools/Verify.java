@@ -179,6 +179,9 @@ public class Verify {
 			throw new SpdxVerificationException("IO Error reading SPDX file",e);
 		} catch (InvalidSPDXAnalysisException e) {
 			throw new SpdxVerificationException("Analysis exception processing SPDX file: "+e.getMessage(),e);
+		} catch (RuntimeException e) {
+			// e.g. a parser error in an RDF file
+			throw new SpdxVerificationException("Error reading SPDX file: "+e.getMessage(),e);
 		}
 		List<String> retval = new ArrayList<String>();
 		if (store instanceof TagValueStore) {
@@ -189,7 +192,7 @@ public class Verify {
 			try {
 				String jsonSchemaResource;
 				if (SerFileType.JSON.equals(fileType)) {
-					jsonSchemaResource = Version.versionLessThan(Version.TWO_POINT_THREE_VERSION, doc.getSpecVersion()) ? 
+					jsonSchemaResource = Version.versionLessThan(doc.getSpecVersion(), Version.TWO_POINT_THREE_VERSION) ? 
 						JSON_SCHEMA_RESOURCE_V2_2 : JSON_SCHEMA_RESOURCE_V2_3;
 				} else {
 					jsonSchemaResource = JSON_SCHEMA_RESOURCE_V3;

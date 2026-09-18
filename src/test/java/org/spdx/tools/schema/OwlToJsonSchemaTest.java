@@ -10,10 +10,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.jena.ontapi.OntModelFactory;
-import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -30,8 +29,7 @@ public class OwlToJsonSchemaTest extends TestCase {
 	public void testConvertToJsonSchema() throws IOException {
 		OwlToJsonSchema otjs = null;
 		try (InputStream is = new FileInputStream(new File(OWL_FILE_PATH))) {
-			OntModel model = OntModelFactory
-					.createModel(OntSpecification.OWL2_DL_MEM);
+			OntModel model = AbstractOwlRdfConverter.createOntModel();
 			model.read(is, "RDF/XML");
 			otjs = new OwlToJsonSchema(model);
 		}
@@ -55,5 +53,27 @@ public class OwlToJsonSchemaTest extends TestCase {
 		assertTrue(result.has("required"));
 		ArrayNode required = (ArrayNode) result.get("required");
 		assertTrue(required.size() > 0);
+
+		// restrictions inherited from the superclasses (SpdxElement, SpdxItem) are included
+		JsonNode packageSchema = properties.get("packages").get("items");
+		assertEquals("array", packageSchema.get("properties").get("annotations").get("type").asText());
+		assertTrue(packageSchema.get("properties").has("comment"));
+		assertTrue(contains(packageSchema.get("required"), "name"));
+		assertTrue(contains(packageSchema.get("required"), "copyrightText"));
+		assertTrue(contains(packageSchema.get("required"), "licenseConcluded"));
+		JsonNode fileSchema = properties.get("files").get("items");
+		assertTrue(contains(fileSchema.get("required"), "copyrightText"));
+		assertTrue(contains(fileSchema.get("required"), "licenseConcluded"));
+		JsonNode extractedLicense = properties.get("hasExtractedLicensingInfos").get("items");
+		assertEquals("array", extractedLicense.get("properties").get("seeAlsos").get("type").asText());
+	}
+
+	private static boolean contains(JsonNode array, String value) {
+		for (JsonNode element : array) {
+			if (value.equals(element.asText())) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -34,7 +34,7 @@ public class SpdxViewerTest extends TestCase {
 		String output = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
 		assertTrue(output.contains("Document Name: SPDX-Tools-v2.0"));
 		// non-ASCII text in the document is written in the encoding of System.out
-		assertTrue(output.contains("© Copyright 2007 Hewlett-Packard"));
+		assertTrue(output.contains("\u00A9 Copyright 2007 Hewlett-Packard"));
 		// the viewer must not close System.out
 		assertTrue(output.contains("MARKER-AFTER-RUN"));
 	}
@@ -46,5 +46,53 @@ public class SpdxViewerTest extends TestCase {
 
 	public void testUsageError() {
 		assertEquals(ExitCode.USAGE_ERROR, SpdxViewer.run(new String[] {}));
+	}
+
+	private static String captureConsoleWriter(String[] chunks) throws Exception {
+		PrintStream original = System.out;
+		ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+		try {
+			System.setOut(new PrintStream(bytes, true, StandardCharsets.UTF_8));
+			SpdxViewer.ConsoleWriter writer = new SpdxViewer.ConsoleWriter();
+			for (String chunk : chunks) {
+				writer.write(chunk.toCharArray(), 0, chunk.length());
+			}
+			writer.flush();
+		} finally {
+			System.setOut(original);
+		}
+		return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+	}
+
+	public void testConsoleWriterSurrogatePairSplitAtFlushBoundary() throws Exception {
+		String padding = "a".repeat(SpdxViewer.ConsoleWriter.FLUSH_THRESHOLD - 1);
+		// the high surrogate ends the first flushed chunk, its low surrogate starts the next
+		String output = captureConsoleWriter(new String[] {padding + "\uD83D", "\uDE00 end"});
+		assertEquals(padding + "\uD83D\uDE00 end", output);
+	}
+
+	public void testConsoleWriterBuffersUntilFlush() throws Exception {
+		PrintStream original = System.out;
+		ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+		try {
+			System.setOut(new PrintStream(bytes, true, StandardCharsets.UTF_8));
+			SpdxViewer.ConsoleWriter writer = new SpdxViewer.ConsoleWriter();
+			writer.write("small".toCharArray(), 0, 5);
+			assertEquals(0, bytes.size());
+			writer.close();
+			assertEquals("small", new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+		} finally {
+			System.setOut(original);
+		}
+	}
+
+	public void testConsoleWriterLargeOutputIsComplete() throws Exception {
+		StringBuilder expected = new StringBuilder();
+		String[] chunks = new String[3000];
+		for (int i = 0; i < chunks.length; i++) {
+			chunks[i] = "line " + i + " \u00A9 \uD83D\uDE00\n";
+			expected.append(chunks[i]);
+		}
+		assertEquals(expected.toString(), captureConsoleWriter(chunks));
 	}
 }

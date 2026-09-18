@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,12 +25,12 @@ public class RdfSchemaToolsTest extends TestCase {
 
 	static final String ONTOLOGY = "testResources" + File.separator + "spdx-2-2-revision-8-ontology.owl.xml";
 
-	/** output file name -> tool main method, invoked as main(inputFile, outputFile) */
-	static final Map<String, Consumer<String[]>> TOOLS = new LinkedHashMap<>();
+	/** output file name -> tool run method, invoked as run(inputFile, outputFile) */
+	static final Map<String, Function<String[], Integer>> TOOLS = new LinkedHashMap<>();
 	static {
-		TOOLS.put("schema.xsd", RdfSchemaToXsd::main);
-		TOOLS.put("schema.json", RdfSchemaToJsonSchema::main);
-		TOOLS.put("context.json", RdfSchemaToJsonContext::main);
+		TOOLS.put("schema.xsd", RdfSchemaToXsd::run);
+		TOOLS.put("schema.json", RdfSchemaToJsonSchema::run);
+		TOOLS.put("context.json", RdfSchemaToJsonContext::run);
 	}
 
 	Path tempDirPath;
@@ -42,13 +42,14 @@ public class RdfSchemaToolsTest extends TestCase {
 
 	protected void tearDown() throws Exception {
 		super.tearDown();
-		SpdxConverterTestV3.deleteDirAndFiles(tempDirPath);
+		TestFileUtils.deleteDirAndFiles(tempDirPath);
 	}
 
 	public void testGeneratesOutputAndReleasesFile() throws Exception {
-		for (Map.Entry<String, Consumer<String[]>> tool : TOOLS.entrySet()) {
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
 			Path output = tempDirPath.resolve(tool.getKey());
-			tool.getValue().accept(new String[] {ONTOLOGY, output.toString()});
+			assertEquals(tool.getKey(), ExitCode.SUCCESS,
+					tool.getValue().apply(new String[] {ONTOLOGY, output.toString()}).intValue());
 			assertTrue(tool.getKey() + " output missing", Files.exists(output));
 			String text = new String(Files.readAllBytes(output), StandardCharsets.UTF_8);
 			assertFalse(tool.getKey() + " output empty", text.isEmpty());
@@ -64,28 +65,60 @@ public class RdfSchemaToolsTest extends TestCase {
 	}
 
 	public void testMissingInputCreatesNoOutput() {
-		for (Map.Entry<String, Consumer<String[]>> tool : TOOLS.entrySet()) {
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
 			Path output = tempDirPath.resolve(tool.getKey());
 			Path missing = tempDirPath.resolve("doesNotExist.owl.xml");
-			tool.getValue().accept(new String[] {missing.toString(), output.toString()});
+			assertEquals(ExitCode.ERROR, tool.getValue().apply(new String[] {missing.toString(), output.toString()}).intValue());
 			assertFalse(Files.exists(output));
 		}
 	}
 
 	public void testUnwritableOutputDoesNotThrow() {
-		for (Map.Entry<String, Consumer<String[]>> tool : TOOLS.entrySet()) {
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
 			Path unwritable = tempDirPath.resolve("no-such-dir").resolve(tool.getKey());
-			tool.getValue().accept(new String[] {ONTOLOGY, unwritable.toString()});
+			assertEquals(ExitCode.ERROR, tool.getValue().apply(new String[] {ONTOLOGY, unwritable.toString()}).intValue());
 			assertFalse(Files.exists(unwritable));
 		}
 	}
 
 	public void testExistingOutputIsNotOverwritten() throws Exception {
-		for (Map.Entry<String, Consumer<String[]>> tool : TOOLS.entrySet()) {
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
 			Path output = tempDirPath.resolve(tool.getKey());
 			Files.write(output, "keep".getBytes(StandardCharsets.UTF_8));
-			tool.getValue().accept(new String[] {ONTOLOGY, output.toString()});
+			assertEquals(ExitCode.ERROR, tool.getValue().apply(new String[] {ONTOLOGY, output.toString()}).intValue());
 			assertEquals("keep", new String(Files.readAllBytes(output), StandardCharsets.UTF_8));
+		}
+	}
+
+	public void testUsageError() {
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
+			assertEquals(ExitCode.USAGE_ERROR, tool.getValue().apply(new String[] {}).intValue());
+			assertEquals(ExitCode.USAGE_ERROR, tool.getValue().apply(new String[] {ONTOLOGY}).intValue());
+			assertEquals(ExitCode.USAGE_ERROR, tool.getValue().apply(new String[] {"a", "b", "c"}).intValue());
+		}
+	}
+
+	public void testMalformedOntologyIsAnError() throws Exception {
+		Path input = tempDirPath.resolve("bad.owl.xml");
+		Files.write(input, "not rdf".getBytes(StandardCharsets.UTF_8));
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
+			Path output = tempDirPath.resolve("bad-" + tool.getKey());
+			assertEquals(tool.getKey(), ExitCode.ERROR,
+					tool.getValue().apply(new String[] {input.toString(), output.toString()}).intValue());
+			assertFalse(Files.exists(output));
+		}
+	}
+
+	public void testOntologyWithoutHeaderIsAnError() throws Exception {
+		Path input = tempDirPath.resolve("noheader.owl.xml");
+		Files.write(input, ("<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'"
+				+ " xmlns:owl='http://www.w3.org/2002/07/owl#'><owl:Class rdf:about='http://example.com/A'/></rdf:RDF>")
+				.getBytes(StandardCharsets.UTF_8));
+		for (Map.Entry<String, Function<String[], Integer>> tool : TOOLS.entrySet()) {
+			Path output = tempDirPath.resolve("noheader-" + tool.getKey());
+			assertEquals(tool.getKey(), ExitCode.ERROR,
+					tool.getValue().apply(new String[] {input.toString(), output.toString()}).intValue());
+			assertFalse(Files.exists(output));
 		}
 	}
 }

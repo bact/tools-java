@@ -137,7 +137,7 @@ public class ExternalReferencesSheet extends AbstractSheet {
 		checksumHeaderCell.setCellStyle(headerStyle);
 		checksumHeaderCell.setCellValue(CHECKSUM_TEXT_TITLE);
 
-		for (int i = FIRST_DOC_ID_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS; i++) {
+		for (int i = FIRST_DOC_ID_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS + FIRST_DOC_ID_COL; i++) {
 			sheet.setColumnWidth(i, DOC_ID_COL_WIDTH*256);
 			sheet.setDefaultColumnStyle(i, defaultStyle);
 			Cell cell = row.createCell(i);

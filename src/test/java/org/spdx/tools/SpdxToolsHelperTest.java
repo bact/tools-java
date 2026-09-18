@@ -22,8 +22,8 @@ public class SpdxToolsHelperTest extends TestCase {
 
 	static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 	static final String JSONLD_TEXT = "{\"@context\": \"https://spdx.org/rdf/3.0.1/spdx-context.jsonld\","
-			+ " \"name\": \"über © “quoted”\"}";
-	static final String JSON_TEXT = "{\"name\": \"über © “quoted”\"}";
+			+ " \"name\": \"\u00FCber \u00A9 \u201Cquoted\u201D\"}";
+	static final String JSON_TEXT = "{\"name\": \"\u00FCber \u00A9 \u201Cquoted\u201D\"}";
 
 	Path tempDirPath;
 
@@ -34,7 +34,7 @@ public class SpdxToolsHelperTest extends TestCase {
 
 	protected void tearDown() throws Exception {
 		super.tearDown();
-		SpdxConverterTestV3.deleteDirAndFiles(tempDirPath);
+		TestFileUtils.deleteDirAndFiles(tempDirPath);
 	}
 
 	private File write(String name, boolean bom, String text) throws IOException {
@@ -65,5 +65,25 @@ public class SpdxToolsHelperTest extends TestCase {
 	public void testUnreadableJsonFallsBackToJson() throws Exception {
 		File missing = tempDirPath.resolve("missing.json").toFile();
 		assertEquals(SerFileType.JSON, SpdxToolsHelper.fileToFileType(missing));
+	}
+
+	public void testFileTypeFromExtensionIsCaseInsensitive() throws Exception {
+		assertEquals(SerFileType.RDFXML, SpdxToolsHelper.fileToFileType(new File("x.RDF.XML")));
+		assertEquals(SerFileType.RDFXML, SpdxToolsHelper.fileToFileType(new File("x.Rdf.Xml")));
+		assertEquals(SerFileType.RDFTTL, SpdxToolsHelper.fileToFileType(new File("x.Rdf.Ttl")));
+		assertEquals(SerFileType.XLSX, SpdxToolsHelper.fileToFileType(new File("x.XLSX")));
+		assertEquals(SerFileType.YAML, SpdxToolsHelper.fileToFileType(new File("x.YAML")));
+	}
+
+	public void testCompoundExtensionNeedsADot() throws Exception {
+		assertEquals(SerFileType.XML, SpdxToolsHelper.fileToFileType(new File("cardf.xml")));
+		assertEquals(SerFileType.RDFXML, SpdxToolsHelper.fileToFileType(new File("card.rdf.xml")));
+	}
+
+	public void testJsonLdCompoundExtensions() throws Exception {
+		File spdx3 = write("upper.SPDX3.JSON", false, JSON_TEXT);
+		assertEquals(SerFileType.JSONLD, SpdxToolsHelper.fileToFileType(spdx3));
+		File jsonld = write("upper.JSONLD.JSON", false, JSON_TEXT);
+		assertEquals(SerFileType.JSONLD, SpdxToolsHelper.fileToFileType(jsonld));
 	}
 }

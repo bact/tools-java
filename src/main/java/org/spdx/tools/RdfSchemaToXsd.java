@@ -26,11 +26,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.jena.ontapi.OntModelFactory;
-import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.ws.commons.schema.XmlSchema;
 import org.apache.ws.commons.schema.XmlSchemaSerializer.XmlSchemaSerializerException;
+import org.spdx.tools.schema.AbstractOwlRdfConverter;
 import org.spdx.tools.schema.OwlToXsd;
 import org.spdx.tools.schema.SchemaException;
 
@@ -41,54 +40,64 @@ import org.spdx.tools.schema.SchemaException;
 public class RdfSchemaToXsd {
 
 	/**
+	 * Main entry point, terminates the JVM with the exit status of {@link #run(String[])}
 	 * @param args arg[0] RDF Schema file path; arg[1] output file path
 	 */
 	public static void main(String[] args) {
-		if (args.length != 2) {
-			System.err
-					.println("Invalid number of arguments");
+		System.exit(run(args));
+	}
+
+	/**
+	 * Runs the command logic and reports results to standard out/error,
+	 * without terminating the JVM - allows the logic to be unit tested.
+	 * @param args arg[0] RDF Schema file path; arg[1] output file path
+	 * @return process exit status, see {@link ExitCode}
+	 */
+	static int run(String[] args) {
+		if (args == null || args.length != 2) {
+			System.err.println("Invalid number of arguments");
 			usage();
-			return;
+			return ExitCode.USAGE_ERROR;
 		}
 		File fromFile = new File(args[0]);
 		if (!fromFile.exists()) {
-			System.err
-				.println("Input file "+args[0]+" does not exist.");
+			System.err.println("Input file "+args[0]+" does not exist.");
 			usage();
-			return;
+			return ExitCode.ERROR;
 		}
 		File toFile = new File(args[1]);
 		if (toFile.exists()) {
 			System.err.println("Output file "+args[1]+" already exists.");
 			usage();
-			return;
+			return ExitCode.ERROR;
 		}
 		OntModel model = null;
 		try (InputStream is = new FileInputStream(fromFile)) {
-			model = OntModelFactory.createModel(OntSpecification.OWL2_DL_MEM);
+			model = AbstractOwlRdfConverter.createOntModel();
 			model.read(is, "RDF/XML");
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
-			return;
+			return ExitCode.ERROR;
 		} catch (IOException e) {
 			System.err.println("Error closing input file stream: "+e.getMessage());
+		} catch (RuntimeException e) {
+			System.err.println("Unable to read ontology from file "+fromFile.getName()+": "+e.getMessage());
+			return ExitCode.ERROR;
 		}
+		XmlSchema xmlSchema;
 		try {
-			OwlToXsd owlToXsd = new OwlToXsd(model);
-			XmlSchema xmlSchema = owlToXsd.convertToXsd();
-			try (OutputStream os = new FileOutputStream(toFile)) {
-				xmlSchema.write(os);
-			} catch (IOException e) {
-				System.err.println("I/O error: "+e.getMessage());
-				return;
-			}
-		} catch (XmlSchemaSerializerException e1) {
-			System.err.println("Error generating XSD schema: "+e1.getMessage());
-		} catch (SchemaException e1) {
-			System.err.println("Error generating XSD schema: "+e1.getMessage());
+			xmlSchema = new OwlToXsd(model).convertToXsd();
+		} catch (XmlSchemaSerializerException | SchemaException | RuntimeException e) {
+			System.err.println("Error generating XSD schema: "+e.getMessage());
+			return ExitCode.ERROR;
 		}
-		
-
+		try (OutputStream os = new FileOutputStream(toFile)) {
+			xmlSchema.write(os);
+		} catch (IOException e) {
+			System.err.println("I/O error: "+e.getMessage());
+			return ExitCode.ERROR;
+		}
+		return ExitCode.SUCCESS;
 	}
 
 	public static void usage() {

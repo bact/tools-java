@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 
+import org.apache.commons.io.ByteOrderMark;
 import org.spdx.core.InvalidSPDXAnalysisException;
 import org.spdx.utility.compare.LicenseCompareHelper;
 import org.spdx.utility.compare.SpdxCompareException;
@@ -56,6 +57,10 @@ public class MatchingStandardLicenses {
 
 	static int MIN_ARGS = 1;
 	static int MAX_ARGS = 1;
+
+	/** UTF-32 first: the UTF-32LE BOM begins with the UTF-16LE BOM. */
+	private static final ByteOrderMark[] BOMS = {ByteOrderMark.UTF_32LE, ByteOrderMark.UTF_32BE,
+			ByteOrderMark.UTF_8, ByteOrderMark.UTF_16LE, ByteOrderMark.UTF_16BE};
 
 	/**
 	 * Main entry point for the MatchingStandardLicenses tool.
@@ -127,23 +132,32 @@ public class MatchingStandardLicenses {
 	}
 
 	/**
-	 * Reads a text file. A UTF-8 or UTF-16 byte order mark selects the encoding and is
-	 * removed. Otherwise the bytes are decoded as UTF-8, or with the platform default
-	 * charset if they are not valid UTF-8 (e.g. a legacy Windows ANSI file).
+	 * Reads a text file with the platform default charset as the fallback, see
+	 * {@link #readAll(File, Charset)}.
 	 * @param textFile file to read
 	 * @return the file content, without any byte order mark
 	 * @throws IOException on read error
 	 */
 	static String readAll(File textFile) throws IOException {
+		return readAll(textFile, Charset.defaultCharset());
+	}
+
+	/**
+	 * Reads a text file. A UTF-8, UTF-16 or UTF-32 byte order mark selects the encoding and
+	 * is removed. Otherwise the bytes are decoded as UTF-8, or with {@code fallback} if they
+	 * are not valid UTF-8 (e.g. a legacy Windows ANSI file).
+	 * @param textFile file to read
+	 * @param fallback charset for content that has no byte order mark and is not valid UTF-8
+	 * @return the file content, without any byte order mark
+	 * @throws IOException on read error
+	 */
+	static String readAll(File textFile, Charset fallback) throws IOException {
 		byte[] bytes = Files.readAllBytes(textFile.toPath());
-		if (hasPrefix(bytes, 0xEF, 0xBB, 0xBF)) {
-			return new String(bytes, 3, bytes.length - 3, StandardCharsets.UTF_8);
-		}
-		if (hasPrefix(bytes, 0xFF, 0xFE)) {
-			return new String(bytes, 2, bytes.length - 2, StandardCharsets.UTF_16LE);
-		}
-		if (hasPrefix(bytes, 0xFE, 0xFF)) {
-			return new String(bytes, 2, bytes.length - 2, StandardCharsets.UTF_16BE);
+		for (ByteOrderMark bom : BOMS) {
+			if (startsWith(bytes, bom)) {
+				return new String(bytes, bom.length(), bytes.length - bom.length(),
+						Charset.forName(bom.getCharsetName()));
+			}
 		}
 		try {
 			return StandardCharsets.UTF_8.newDecoder()
@@ -151,16 +165,16 @@ public class MatchingStandardLicenses {
 					.onUnmappableCharacter(CodingErrorAction.REPORT)
 					.decode(ByteBuffer.wrap(bytes)).toString();
 		} catch (CharacterCodingException e) {
-			return new String(bytes, Charset.defaultCharset());
+			return new String(bytes, fallback);
 		}
 	}
 
-	private static boolean hasPrefix(byte[] bytes, int... prefix) {
-		if (bytes.length < prefix.length) {
+	private static boolean startsWith(byte[] bytes, ByteOrderMark bom) {
+		if (bytes.length < bom.length()) {
 			return false;
 		}
-		for (int i = 0; i < prefix.length; i++) {
-			if ((bytes[i] & 0xFF) != prefix[i]) {
+		for (int i = 0; i < bom.length(); i++) {
+			if (bytes[i] != (byte) bom.get(i)) {
 				return false;
 			}
 		}

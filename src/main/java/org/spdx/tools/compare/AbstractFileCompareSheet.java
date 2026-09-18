@@ -144,6 +144,7 @@ public abstract class AbstractFileCompareSheet extends AbstractSheet {
 						allValuesMatch = false;
 					}
 					lastFile = files.get(i).get(fileIndexes[i]);
+					lastDocIndex = i;
 					if (val.length() > MAX_VALUE_LENGTH) {
 						val = val.substring(0, MAX_VALUE_LENGTH-9) + "[more...]";
 					}

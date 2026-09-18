@@ -33,7 +33,7 @@ import org.spdx.utility.compare.SpdxComparer;
  */
 public class FileChecksumSheet extends AbstractFileCompareSheet {
 
-	private static final int CHECKSUM_COL_WIDTH = 41;
+	private static final int CHECKSUM_COL_WIDTH = 80;
 
 	/**
 	 * @param workbook
@@ -52,7 +52,7 @@ public class FileChecksumSheet extends AbstractFileCompareSheet {
 	 */
 	@Override
 	String getFileValue(SpdxFile spdxFile) throws InvalidSPDXAnalysisException {
-		return spdxFile.getSha1();
+		return CompareHelper.checksumsToString(spdxFile.getChecksums());
 	}
 
 	/* (non-Javadoc)
@@ -61,6 +61,7 @@ public class FileChecksumSheet extends AbstractFileCompareSheet {
 	@Override
 	boolean valuesMatch(SpdxComparer comparer, SpdxFile fileA, int docIndexA,
 			SpdxFile fileB, int docIndexB) throws SpdxCompareException, InvalidSPDXAnalysisException {
-		return Objects.equals(fileA.getSha1(), fileB.getSha1());
+		return Objects.equals(CompareHelper.checksumsToString(fileA.getChecksums()),
+				CompareHelper.checksumsToString(fileB.getChecksums()));
 	}
 }

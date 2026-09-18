@@ -6,6 +6,8 @@
 package org.spdx.tools;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 
 import org.spdx.core.DefaultModelStore;
@@ -15,6 +17,9 @@ import org.spdx.library.model.v2.SpdxModelInfoV2_X;
 import org.spdx.library.model.v3_0_1.SpdxModelInfoV3_0;
 import org.spdx.storage.simple.InMemSpdxStore;
 import org.spdx.tools.SpdxToolsHelper.SerFileType;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import junit.framework.TestCase;
 
@@ -105,5 +110,35 @@ public class VerifyTest extends TestCase {
 	public void testVerifyDouble() throws SpdxVerificationException {
 		List<String> result = Verify.verify(DOUBLE_JSON_LD_FILE_PATH, SerFileType.JSONLD);
         assertEquals(0, result.size());
+	}
+
+	public void testV22JsonIsValidatedAgainstV22Schema() throws Exception {
+		// primaryPackagePurpose is new in 2.3, so the 2.2 schema rejects it and the 2.3 schema accepts it
+		ObjectNode doc = (ObjectNode) new ObjectMapper().readTree(new File(JSON_V2_2_FILE_PATH));
+		((ObjectNode) doc.get("packages").get(0)).put("primaryPackagePurpose", "LIBRARY");
+		File file = File.createTempFile("verify-v22-", ".spdx.json");
+		file.deleteOnExit();
+		Files.write(file.toPath(), new ObjectMapper().writeValueAsBytes(doc));
+		List<String> result = Verify.verify(file.getPath(), SerFileType.JSON);
+		boolean schemaError = false;
+		for (String message : result) {
+			if (message.contains("primaryPackagePurpose") && message.contains("$.")) {
+				schemaError = true;
+			}
+		}
+		assertTrue("expected a JSON schema error, got " + result, schemaError);
+	}
+
+	public void testMalformedRdfFileIsAVerificationException() throws Exception {
+		File file = File.createTempFile("verify-bad-", ".rdf.xml");
+		file.deleteOnExit();
+		Files.write(file.toPath(), "not rdf".getBytes(StandardCharsets.UTF_8));
+		try {
+			Verify.verify(file.getPath(), SerFileType.RDFXML);
+			fail("expected SpdxVerificationException");
+		} catch (SpdxVerificationException e) {
+			// expected
+		}
+		assertEquals(ExitCode.ERROR, Verify.run(new String[] {file.getPath()}));
 	}
 }

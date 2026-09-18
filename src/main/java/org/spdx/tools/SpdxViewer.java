@@ -83,7 +83,6 @@ public class SpdxViewer {
 		SpdxToolsHelper.initialize();
 		SpdxDocument doc = null;
 		ISerializableModelStore store = null;
-		PrintWriter writer = null;
 		try {
 			File file = new File(args[0]);
 			if (!file.exists()) {
@@ -116,7 +115,6 @@ public class SpdxViewer {
 		                .print("Error creating SPDX Document: " + ex.getMessage());
 		        return ExitCode.ERROR;
 		    }
-		    writer = new PrintWriter(new ConsoleWriter());
 			List<String> verify = doc.verify();
 			if (verify.size() > 0) {
 				System.out.println("This SPDX Document is not valid due to:");
@@ -128,7 +126,12 @@ public class SpdxViewer {
 			Properties constants = CommonCode
 					.getTextFromProperties("org/spdx/tag/SpdxViewerConstants.properties");
 			// print document to system output using human readable format
-			CommonCode.printDoc(doc, writer, constants);
+			PrintWriter writer = new PrintWriter(new ConsoleWriter());
+			try {
+				CommonCode.printDoc(doc, writer, constants);
+			} finally {
+				writer.flush();
+			}
 		} catch (InvalidSPDXAnalysisException e) {
 			System.out.print("Error pretty printing SPDX Document: "
 					+ e.getMessage());
@@ -138,9 +141,6 @@ public class SpdxViewer {
 					+ e.getMessage());
 			return ExitCode.ERROR;
 		} finally {
-		    if (writer != null) {
-		        writer.flush();
-		    }
 		    if (Objects.nonNull(store)) {
     			try {
                     store.close();
@@ -153,18 +153,33 @@ public class SpdxViewer {
 	}
 
 	/**
-	 * Forwards text to {@code System.out}, so it is encoded by the console stream in the
-	 * same charset as the tool's other output. Closing it does not close {@code System.out}.
+	 * Buffers text and forwards it to {@code System.out}, so it is encoded by the console
+	 * stream in the same charset as the tool's other output. Closing it does not close
+	 * {@code System.out}.
 	 */
-	private static class ConsoleWriter extends Writer {
+	static class ConsoleWriter extends Writer {
+		static final int FLUSH_THRESHOLD = 8192;
+		private final StringBuilder buffer = new StringBuilder();
+
 		@Override
 		public void write(char[] cbuf, int off, int len) {
-			System.out.print(new String(cbuf, off, len));
+			buffer.append(cbuf, off, len);
+			if (buffer.length() >= FLUSH_THRESHOLD) {
+				drain();
+			}
 		}
 
 		@Override
 		public void flush() {
+			drain();
 			System.out.flush();
+		}
+
+		private void drain() {
+			if (buffer.length() > 0) {
+				System.out.print(buffer.toString());
+				buffer.setLength(0);
+			}
 		}
 
 		@Override

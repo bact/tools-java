@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
@@ -150,23 +151,23 @@ public class SpdxToolsHelper {
 			throw new InvalidFileNameException(
 					"Can not convert file to file type - no file extension for file "+file.getPath());
 		}
-		String ext = fileName.substring(fileName.lastIndexOf(".") + 1)
-				.toLowerCase();
+		String lowerCaseName = fileName.toLowerCase(Locale.ROOT);
+		String ext = lowerCaseName.substring(lowerCaseName.lastIndexOf(".") + 1);
 		if ("xml".equals(ext)) {
-			if (fileName.endsWith("rdf.xml")) {
+			if (lowerCaseName.endsWith(".rdf.xml")) {
 				ext = "rdf.xml";
 			}
 		}
 		if ("ttl".equals(ext)) {
-			if (fileName.endsWith("rdf.ttl")) {
+			if (lowerCaseName.endsWith(".rdf.ttl")) {
 				ext = "rdf.ttl";
 			}
 		}
 		if ("json".equals(ext)) {
-			if (fileName.endsWith("jsonld.json")) {
+			if (lowerCaseName.endsWith(".jsonld.json")) {
 				ext = "jsonld.json";
 			}
-			if (fileName.endsWith("spdx3.json")) {
+			if (lowerCaseName.endsWith(".spdx3.json")) {
 				ext = "spdx3.json";
 			}
 		}

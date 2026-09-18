@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Objects;
 
 import org.spdx.core.InvalidSPDXAnalysisException;
@@ -83,10 +84,10 @@ public class SpdxConverter {
 			return ExitCode.USAGE_ERROR;
 		}
 		if (args.length > MAX_ARGS) {
-			System.out.printf("Warning: Extra arguments will be ignored");
+			System.out.println("Warning: Extra arguments will be ignored");
 		}
 		if (args.length == 3) {
-			System.out.printf("Warning: only the input file type specified - it will be ignored");
+			System.out.println("Warning: only the input file type specified - it will be ignored");
 		}
 		boolean excludeLicenseDetails = false;
 		if (args.length == 5 && "excludelicensedetails".equals(args[4].toLowerCase())) {
@@ -185,6 +186,7 @@ public class SpdxConverter {
 		}
 		String oldXmlInputFactory = null;
 		boolean propertySet = false;
+		boolean outputCreated = false;
 		try {
 			ISerializableModelStore fromStore = SpdxToolsHelper.fileTypeToStore(fromFileType);
 			ISerializableModelStore toStore = SpdxToolsHelper.fileTypeToStore(toFileType);
@@ -211,6 +213,7 @@ public class SpdxConverter {
 			}
 			try (FileInputStream input = new FileInputStream(fromFile);
 					FileOutputStream output = new FileOutputStream(toFile)) {
+				outputCreated = true;
 				fromStore.deSerialize(input, false);
 				if (fromVersion == SpdxMajorVersion.VERSION_3) {
 					copyV3ToV3(fromStore, toStore, excludeLicenseDetails);
@@ -225,6 +228,14 @@ public class SpdxConverter {
 			String msg = "Error converting SPDX file: "+ex.getClass().toString();
 			if (Objects.nonNull(ex.getMessage())) {
 				msg = msg + " " + ex.getMessage();
+			}
+			if (outputCreated) {
+				// the streams are already closed; don't leave a partial file that blocks a retry
+				try {
+					Files.deleteIfExists(toFile.toPath());
+				} catch (IOException | RuntimeException deleteFailure) {
+					ex.addSuppressed(deleteFailure);
+				}
 			}
 			throw new SpdxConverterException(msg, ex);
 		} finally {

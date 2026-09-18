@@ -118,7 +118,8 @@ public class OwlToXsd extends AbstractOwlRdfConverter {
 		XmlSchemaComplexContentExtension schemaExtension = null;
 		java.util.List<OntClass> superClasses = type.superClasses(true)
 				.filter(sc -> sc.isURIResource()
-						&& !"http://www.w3.org/2000/01/rdf-schema#Container".equals(sc.getURI()))
+						&& !"http://www.w3.org/2000/01/rdf-schema#Container".equals(sc.getURI())
+						&& !"http://www.w3.org/2002/07/owl#Thing".equals(sc.getURI()))
 				.collect(java.util.stream.Collectors.toList());
 		
 		if (!superClasses.isEmpty()) {
