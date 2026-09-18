@@ -21,16 +21,15 @@ package org.spdx.tools;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
 
 import org.apache.jena.ontapi.OntModelFactory;
 import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
 import org.spdx.tools.schema.OwlToJsonSchema;
 
+import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,32 +65,22 @@ public class RdfSchemaToJsonSchema {
 			usage();
 			return;
 		}
-		InputStream is = null;
 		OntModel model = null;
-		try {
-			is = new FileInputStream(fromFile);
+		try (InputStream is = new FileInputStream(fromFile)) {
 			model = OntModelFactory.createModel(OntSpecification.OWL2_DL_MEM);
 			model.read(is, "RDF/XML");
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
 			return;
-		} finally {
-			if (is != null) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
+		} catch (IOException e) {
+			System.err.println("Error closing input file stream: "+e.getMessage());
 		}
 		OwlToJsonSchema owlToJson = new OwlToJsonSchema(model);
 		ObjectNode root = owlToJson.convertToJsonSchema();
 		ObjectMapper jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
-		JsonGenerator jsonGenerator = null;
-		try {
-		    jsonGenerator = jsonMapper.getFactory().createGenerator(new FileOutputStream(toFile));
-			jsonMapper.writeTree(jsonGenerator.useDefaultPrettyPrinter(), 
+		try (JsonGenerator jsonGenerator = jsonMapper.getFactory().createGenerator(toFile, JsonEncoding.UTF8)) {
+			jsonMapper.writeTree(jsonGenerator.useDefaultPrettyPrinter(),
 					root);
 		} catch (JsonProcessingException e) {
 			System.err.println("JSON error "+e.getMessage());
@@ -99,21 +88,6 @@ public class RdfSchemaToJsonSchema {
 		} catch (IOException e) {
 			System.err.println("I/O error: "+e.getMessage());
 			return;
-		} finally {
-			if (Objects.nonNull(is)) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
-			if (Objects.nonNull(jsonGenerator)) {
-				try {
-				    jsonGenerator.close();
-				} catch (IOException e) {
-					System.err.println("Error closing output file stream: "+e.getMessage());
-				}
-			}
 		}
 
 	}

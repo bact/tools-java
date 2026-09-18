@@ -25,7 +25,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Objects;
 
 import org.apache.jena.ontapi.OntModelFactory;
 import org.apache.jena.ontapi.OntSpecification;
@@ -64,49 +63,24 @@ public class RdfSchemaToXsd {
 			usage();
 			return;
 		}
-		InputStream is = null;
 		OntModel model = null;
-		try {
-			is = new FileInputStream(fromFile);
+		try (InputStream is = new FileInputStream(fromFile)) {
 			model = OntModelFactory.createModel(OntSpecification.OWL2_DL_MEM);
 			model.read(is, "RDF/XML");
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
 			return;
-		} finally {
-			if (is != null) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
+		} catch (IOException e) {
+			System.err.println("Error closing input file stream: "+e.getMessage());
 		}
 		try {
 			OwlToXsd owlToXsd = new OwlToXsd(model);
 			XmlSchema xmlSchema = owlToXsd.convertToXsd();
-			OutputStream os = null;
-			try {
-				os = new FileOutputStream(toFile);
+			try (OutputStream os = new FileOutputStream(toFile)) {
 				xmlSchema.write(os);
 			} catch (IOException e) {
 				System.err.println("I/O error: "+e.getMessage());
 				return;
-			} finally {
-				if (Objects.nonNull(is)) {
-					try {
-						is.close();
-					} catch (IOException e) {
-						System.err.println("Error closing input file stream: "+e.getMessage());
-					}
-				}
-				if (Objects.nonNull(os)) {
-					try {
-						os.close();
-					} catch (IOException e) {
-						System.err.println("Error closing output file stream: "+e.getMessage());
-					}
-				}
 			}
 		} catch (XmlSchemaSerializerException e1) {
 			System.err.println("Error generating XSD schema: "+e1.getMessage());

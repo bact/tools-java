@@ -20,7 +20,11 @@ package org.spdx.tools;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 
@@ -123,12 +127,44 @@ public class MatchingStandardLicenses {
 	}
 
 	/**
-	 * @param textFile
-	 * @return
-	 * @throws IOException
+	 * Reads a text file. A UTF-8 or UTF-16 byte order mark selects the encoding and is
+	 * removed. Otherwise the bytes are decoded as UTF-8, or with the platform default
+	 * charset if they are not valid UTF-8 (e.g. a legacy Windows ANSI file).
+	 * @param textFile file to read
+	 * @return the file content, without any byte order mark
+	 * @throws IOException on read error
 	 */
-	private static String readAll(File textFile) throws IOException {
-		return new String(Files.readAllBytes(textFile.toPath()), Charset.defaultCharset());
+	static String readAll(File textFile) throws IOException {
+		byte[] bytes = Files.readAllBytes(textFile.toPath());
+		if (hasPrefix(bytes, 0xEF, 0xBB, 0xBF)) {
+			return new String(bytes, 3, bytes.length - 3, StandardCharsets.UTF_8);
+		}
+		if (hasPrefix(bytes, 0xFF, 0xFE)) {
+			return new String(bytes, 2, bytes.length - 2, StandardCharsets.UTF_16LE);
+		}
+		if (hasPrefix(bytes, 0xFE, 0xFF)) {
+			return new String(bytes, 2, bytes.length - 2, StandardCharsets.UTF_16BE);
+		}
+		try {
+			return StandardCharsets.UTF_8.newDecoder()
+					.onMalformedInput(CodingErrorAction.REPORT)
+					.onUnmappableCharacter(CodingErrorAction.REPORT)
+					.decode(ByteBuffer.wrap(bytes)).toString();
+		} catch (CharacterCodingException e) {
+			return new String(bytes, Charset.defaultCharset());
+		}
+	}
+
+	private static boolean hasPrefix(byte[] bytes, int... prefix) {
+		if (bytes.length < prefix.length) {
+			return false;
+		}
+		for (int i = 0; i < prefix.length; i++) {
+			if ((bytes[i] & 0xFF) != prefix[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static void usage() {

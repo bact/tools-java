@@ -20,6 +20,7 @@ package org.spdx.tools;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
@@ -115,7 +116,7 @@ public class SpdxViewer {
 		                .print("Error creating SPDX Document: " + ex.getMessage());
 		        return ExitCode.ERROR;
 		    }
-		    writer = new PrintWriter(System.out);
+		    writer = new PrintWriter(new ConsoleWriter());
 			List<String> verify = doc.verify();
 			if (verify.size() > 0) {
 				System.out.println("This SPDX Document is not valid due to:");
@@ -137,8 +138,8 @@ public class SpdxViewer {
 					+ e.getMessage());
 			return ExitCode.ERROR;
 		} finally {
-		    if (Objects.nonNull(writer)) {
-		        writer.close();
+		    if (writer != null) {
+		        writer.flush();
 		    }
 		    if (Objects.nonNull(store)) {
     			try {
@@ -149,5 +150,26 @@ public class SpdxViewer {
 		    }
 		}
 		return ExitCode.SUCCESS;
+	}
+
+	/**
+	 * Forwards text to {@code System.out}, so it is encoded by the console stream in the
+	 * same charset as the tool's other output. Closing it does not close {@code System.out}.
+	 */
+	private static class ConsoleWriter extends Writer {
+		@Override
+		public void write(char[] cbuf, int off, int len) {
+			System.out.print(new String(cbuf, off, len));
+		}
+
+		@Override
+		public void flush() {
+			System.out.flush();
+		}
+
+		@Override
+		public void close() {
+			flush();
+		}
 	}
 }

@@ -6,6 +6,7 @@
 package org.spdx.tools;
 
 import java.io.File;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
@@ -66,5 +67,54 @@ public class MatchingStandardLicensesTest extends TestCase {
 
 		result = MatchingStandardLicenses.run(null);
 		assertEquals(ExitCode.USAGE_ERROR, result);
+	}
+
+	private static File writeTemp(byte[] content) throws Exception {
+		File file = File.createTempFile("readall", ".txt");
+		file.deleteOnExit();
+		Files.write(file.toPath(), content);
+		return file;
+	}
+
+	private static byte[] concat(byte[] first, byte[] second) {
+		byte[] result = new byte[first.length + second.length];
+		System.arraycopy(first, 0, result, 0, first.length);
+		System.arraycopy(second, 0, result, first.length, second.length);
+		return result;
+	}
+
+	static final String NON_ASCII_TEXT = "© Copyright 2007 über “quoted”";
+
+	public void testReadAllUtf8() throws Exception {
+		File file = writeTemp(NON_ASCII_TEXT.getBytes(StandardCharsets.UTF_8));
+		assertEquals(NON_ASCII_TEXT, MatchingStandardLicenses.readAll(file));
+	}
+
+	public void testReadAllUtf8Bom() throws Exception {
+		byte[] bom = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+		File file = writeTemp(concat(bom, NON_ASCII_TEXT.getBytes(StandardCharsets.UTF_8)));
+		assertEquals(NON_ASCII_TEXT, MatchingStandardLicenses.readAll(file));
+	}
+
+	public void testReadAllUtf16Bom() throws Exception {
+		byte[] leBom = {(byte) 0xFF, (byte) 0xFE};
+		File le = writeTemp(concat(leBom, NON_ASCII_TEXT.getBytes(StandardCharsets.UTF_16LE)));
+		assertEquals(NON_ASCII_TEXT, MatchingStandardLicenses.readAll(le));
+		byte[] beBom = {(byte) 0xFE, (byte) 0xFF};
+		File be = writeTemp(concat(beBom, NON_ASCII_TEXT.getBytes(StandardCharsets.UTF_16BE)));
+		assertEquals(NON_ASCII_TEXT, MatchingStandardLicenses.readAll(be));
+	}
+
+	public void testReadAllLegacyEncodingFallsBackToDefaultCharset() throws Exception {
+		// 0xA9 alone is not valid UTF-8
+		byte[] legacy = {'(', 'c', ')', ' ', (byte) 0xA9, ' ', 'x'};
+		File file = writeTemp(legacy);
+		assertEquals(new String(legacy, Charset.defaultCharset()), MatchingStandardLicenses.readAll(file));
+	}
+
+	public void testReadAllEmptyAndBomOnly() throws Exception {
+		assertEquals("", MatchingStandardLicenses.readAll(writeTemp(new byte[0])));
+		assertEquals("", MatchingStandardLicenses.readAll(
+				writeTemp(new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF})));
 	}
 }

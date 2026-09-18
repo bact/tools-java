@@ -21,7 +21,6 @@ package org.spdx.tools;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -31,6 +30,7 @@ import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
 import org.spdx.tools.schema.OwlToJsonContext;
 
+import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -64,34 +64,24 @@ public class RdfSchemaToJsonContext {
 			usage();
 			return;
 		}
-		InputStream is = null;
 		OwlToJsonContext owlToJsonContext = null;
-		try {
-			is = new FileInputStream(fromFile);
+		try (InputStream is = new FileInputStream(fromFile)) {
 			OntModel model = OntModelFactory.createModel(OntSpecification.OWL2_DL_MEM);
 			model.read(is, "RDF/XML");
 			owlToJsonContext = new OwlToJsonContext(model);
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
 			return;
-		} finally {
-			if (is != null) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
+		} catch (IOException e) {
+			System.err.println("Error closing input file stream: "+e.getMessage());
 		}
 		if (Objects.isNull(owlToJsonContext)) {
 		    System.err.println("Unable to load ontology from file "+fromFile.getName());
 		    return;
 		}
 		ObjectNode context = owlToJsonContext.convertToContext();
-		JsonGenerator jsonGenerator = null;
-		try {
-			jsonGenerator = OwlToJsonContext.JSON_MAPPER.getFactory().createGenerator(new FileOutputStream(toFile));
-			OwlToJsonContext.JSON_MAPPER.writeTree(jsonGenerator.useDefaultPrettyPrinter(), 
+		try (JsonGenerator jsonGenerator = OwlToJsonContext.JSON_MAPPER.getFactory().createGenerator(toFile, JsonEncoding.UTF8)) {
+			OwlToJsonContext.JSON_MAPPER.writeTree(jsonGenerator.useDefaultPrettyPrinter(),
 					context);
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
@@ -102,14 +92,6 @@ public class RdfSchemaToJsonContext {
 		} catch (IOException e) {
 			System.err.println("I/O error: "+e.getMessage());
 			return;
-		} finally {
-			if (Objects.nonNull(jsonGenerator)) {
-				try {
-				    jsonGenerator.close();
-				} catch (IOException e) {
-					System.err.println("Error closing output file stream: "+e.getMessage());
-				}
-			}
 		}
 	}
 

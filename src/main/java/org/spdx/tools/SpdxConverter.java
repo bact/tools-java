@@ -24,8 +24,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Objects;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.spdx.core.InvalidSPDXAnalysisException;
 import org.spdx.library.ModelCopyManager;
 import org.spdx.library.SpdxModelFactory;
@@ -57,7 +55,6 @@ import org.spdx.v3jsonldstore.JsonLDStore;
  * @author Gary O'Neall
  */
 public class SpdxConverter {
-    static final Logger logger = LoggerFactory.getLogger(SpdxConverter.class);
 
 	static final int MIN_ARGS = 2;
 	static final int MAX_ARGS = 5;
@@ -186,8 +183,6 @@ public class SpdxConverter {
 		if (toFile.exists()) {
 			throw new SpdxConverterException("Output file "+toFilePath+" already exists.");
 		}
-		FileInputStream input = null;
-		FileOutputStream output = null;
 		String oldXmlInputFactory = null;
 		boolean propertySet = false;
 		try {
@@ -214,18 +209,19 @@ public class SpdxConverter {
 			if (toStore instanceof JsonLDStore) {
 				((JsonLDStore)toStore).setUseExternalListedElements(true);
 			}
-			input = new FileInputStream(fromFile);
-			output = new FileOutputStream(toFile);
-			fromStore.deSerialize(input, false);
-			if (fromVersion == SpdxMajorVersion.VERSION_3) {
-				copyV3ToV3(fromStore, toStore, excludeLicenseDetails);
-			} else if (toVersion  == SpdxMajorVersion.VERSION_3) {
-				copyV2ToV3(fromStore, toStore, excludeLicenseDetails);
-			} else {
-				copyV2ToV2(fromStore, toStore, excludeLicenseDetails);
+			try (FileInputStream input = new FileInputStream(fromFile);
+					FileOutputStream output = new FileOutputStream(toFile)) {
+				fromStore.deSerialize(input, false);
+				if (fromVersion == SpdxMajorVersion.VERSION_3) {
+					copyV3ToV3(fromStore, toStore, excludeLicenseDetails);
+				} else if (toVersion  == SpdxMajorVersion.VERSION_3) {
+					copyV2ToV3(fromStore, toStore, excludeLicenseDetails);
+				} else {
+					copyV2ToV2(fromStore, toStore, excludeLicenseDetails);
+				}
+				toStore.serialize(output);
 			}
-			toStore.serialize(output);
-		} catch (Exception ex) {
+		} catch (IOException | InvalidSPDXAnalysisException | SpdxConverterException | RuntimeException ex) {
 			String msg = "Error converting SPDX file: "+ex.getClass().toString();
 			if (Objects.nonNull(ex.getMessage())) {
 				msg = msg + " " + ex.getMessage();
@@ -237,20 +233,6 @@ public class SpdxConverter {
 					System.clearProperty(SpdxToolsHelper.XML_INPUT_FACTORY_PROPERTY_KEY);
 				} else {
 					System.setProperty(SpdxToolsHelper.XML_INPUT_FACTORY_PROPERTY_KEY, oldXmlInputFactory);
-				}
-			}
-			if (Objects.nonNull(input)) {
-				try {
-					input.close();
-				} catch (IOException e) {
-					logger.warn("Error closing input file: "+e.getMessage());
-				}
-			}
-			if (Objects.nonNull(output)) {
-				try {
-					output.close();
-				} catch (IOException e) {
-					logger.warn("Error closing output file: "+e.getMessage());
 				}
 			}
 		}

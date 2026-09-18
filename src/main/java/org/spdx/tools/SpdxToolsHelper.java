@@ -23,6 +23,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -172,7 +173,7 @@ public class SpdxToolsHelper {
 		SerFileType retval = EXT_TO_FILETYPE.get(ext);
 		if (SerFileType.JSON.equals(retval)) {
 			// we need to check for a JSON-LD file type
-			try (Scanner scanner = new Scanner(file)) {
+			try (Scanner scanner = new Scanner(file, StandardCharsets.UTF_8)) {
 				scanner.useDelimiter("\"");
 				boolean foundContext = false;
 				boolean foundRdfUri = false;
@@ -189,7 +190,7 @@ public class SpdxToolsHelper {
 						break;
 					}
 				}
-			} catch (FileNotFoundException e) {
+			} catch (IOException e) {
 				// We'll assume it is just a JSON file
 			}
 		}
