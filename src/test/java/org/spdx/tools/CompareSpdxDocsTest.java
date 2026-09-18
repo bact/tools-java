@@ -84,7 +84,7 @@ public class CompareSpdxDocsTest extends TestCase {
 	 */
 	protected void tearDown() throws Exception {
 		super.tearDown();
-		SpdxConverterTestV2.deleteDirAndFiles(tempDirPath);
+		TestFileUtils.deleteDirAndFiles(tempDirPath);
 	}
 	
 	public void testCompareDocumentsv23() throws OnlineToolException, InvalidSPDXAnalysisException, IOException, InvalidFileNameException {

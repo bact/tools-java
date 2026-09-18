@@ -393,14 +393,14 @@ public class OwlToJsonSchema extends AbstractOwlRdfConverter {
 			}
 		} else {
 			OntClass typeClass = model.getOntClass(restrictions.getTypeUri());
+			Objects.requireNonNull(typeClass, "No type class found for "+restrictions.getTypeUri());
+			propertySchema = ontClassToJsonSchema(typeClass);
 			commentStatement = typeClass.getProperty(commentProperty);
 			if (Objects.nonNull(commentStatement) && Objects.nonNull(commentStatement.getObject())
 					&& commentStatement.getObject().isLiteral()) {
 				// replace the property comment with the class comment
 				propertySchema.put("description", commentStatement.getObject().asLiteral().getString());
 			}
-			Objects.requireNonNull(typeClass, "No type class found for "+restrictions.getTypeUri());
-			propertySchema = ontClassToJsonSchema(typeClass);
             if (SINGLE_POINTER_URI.equals(restrictions.getTypeUri())) {
                 // Need to add in the line and offset properties
                 // These are not in the OWL schema since the generic OffsetPointer in the range

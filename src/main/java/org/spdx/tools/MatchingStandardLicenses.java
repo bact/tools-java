@@ -20,10 +20,15 @@ package org.spdx.tools;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 
+import org.apache.commons.io.ByteOrderMark;
 import org.spdx.core.InvalidSPDXAnalysisException;
 import org.spdx.utility.compare.LicenseCompareHelper;
 import org.spdx.utility.compare.SpdxCompareException;
@@ -52,6 +57,10 @@ public class MatchingStandardLicenses {
 
 	static int MIN_ARGS = 1;
 	static int MAX_ARGS = 1;
+
+	/** UTF-32 first: the UTF-32LE BOM begins with the UTF-16LE BOM. */
+	private static final ByteOrderMark[] BOMS = {ByteOrderMark.UTF_32LE, ByteOrderMark.UTF_32BE,
+			ByteOrderMark.UTF_8, ByteOrderMark.UTF_16LE, ByteOrderMark.UTF_16BE};
 
 	/**
 	 * Main entry point for the MatchingStandardLicenses tool.
@@ -123,12 +132,53 @@ public class MatchingStandardLicenses {
 	}
 
 	/**
-	 * @param textFile
-	 * @return
-	 * @throws IOException
+	 * Reads a text file with the platform default charset as the fallback, see
+	 * {@link #readAll(File, Charset)}.
+	 * @param textFile file to read
+	 * @return the file content, without any byte order mark
+	 * @throws IOException on read error
 	 */
-	private static String readAll(File textFile) throws IOException {
-		return new String(Files.readAllBytes(textFile.toPath()), Charset.defaultCharset());
+	static String readAll(File textFile) throws IOException {
+		return readAll(textFile, Charset.defaultCharset());
+	}
+
+	/**
+	 * Reads a text file. A UTF-8, UTF-16 or UTF-32 byte order mark selects the encoding and
+	 * is removed. Otherwise the bytes are decoded as UTF-8, or with {@code fallback} if they
+	 * are not valid UTF-8 (e.g. a legacy Windows ANSI file).
+	 * @param textFile file to read
+	 * @param fallback charset for content that has no byte order mark and is not valid UTF-8
+	 * @return the file content, without any byte order mark
+	 * @throws IOException on read error
+	 */
+	static String readAll(File textFile, Charset fallback) throws IOException {
+		byte[] bytes = Files.readAllBytes(textFile.toPath());
+		for (ByteOrderMark bom : BOMS) {
+			if (startsWith(bytes, bom)) {
+				return new String(bytes, bom.length(), bytes.length - bom.length(),
+						Charset.forName(bom.getCharsetName()));
+			}
+		}
+		try {
+			return StandardCharsets.UTF_8.newDecoder()
+					.onMalformedInput(CodingErrorAction.REPORT)
+					.onUnmappableCharacter(CodingErrorAction.REPORT)
+					.decode(ByteBuffer.wrap(bytes)).toString();
+		} catch (CharacterCodingException e) {
+			return new String(bytes, fallback);
+		}
+	}
+
+	private static boolean startsWith(byte[] bytes, ByteOrderMark bom) {
+		if (bytes.length < bom.length()) {
+			return false;
+		}
+		for (int i = 0; i < bom.length(); i++) {
+			if (bytes[i] != (byte) bom.get(i)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private static void usage() {

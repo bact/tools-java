@@ -310,7 +310,7 @@ public class PackageSheet extends AbstractSheet {
 		}
 		Row attributionRow = this.addRow();
 		attributionRow.createCell(FIELD_COL).setCellValue(ATTRIBUTION_FIELD_TEXT);
-		if (comparer.isAnnotationsEquals()) {
+		if (comparer.isAttributionTextEquals()) {
 			setCellEqualValue(attributionRow.createCell(EQUALS_COL), allDocsPresent);
 		} else {
 			setCellDifferentValue(attributionRow.createCell(EQUALS_COL));

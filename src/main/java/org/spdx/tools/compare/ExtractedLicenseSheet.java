@@ -129,7 +129,7 @@ public class ExtractedLicenseSheet extends AbstractSheet {
 		Cell extractedHeaderCell = row.createCell(EXTRACTED_TEXT_COL);
 		extractedHeaderCell.setCellStyle(headerStyle);
 		extractedHeaderCell.setCellValue(EXTRACTED_TEXT_TITLE);
-		for (int i = FIRST_LIC_ID_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS; i++) {
+		for (int i = FIRST_LIC_ID_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS + FIRST_LIC_ID_COL; i++) {
 			sheet.setColumnWidth(i, LIC_ID_COL_WIDTH*256);
 			sheet.setDefaultColumnStyle(i, defaultStyle);
 			Cell cell = row.createCell(i);
@@ -162,7 +162,7 @@ public class ExtractedLicenseSheet extends AbstractSheet {
 			Row currentRow = this.addRow();
 			String extractedLicenseText = getNextExtractedLicenseText(extractedLicenses, licenseIndexes);
 			Cell licenseTextCell = currentRow.createCell(EXTRACTED_TEXT_COL);
-			licenseTextCell.setCellValue(extractedLicenseText);
+			licenseTextCell.setCellValue(truncateCellText(extractedLicenseText));
 			for (int i = 0; i < extractedLicenses.length; i++) {
 				if (extractedLicenses[i].length > licenseIndexes[i]) {
 					if  (extractedLicenses[i][licenseIndexes[i]] instanceof ExtractedLicenseInfo) {

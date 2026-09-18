@@ -21,16 +21,14 @@ package org.spdx.tools;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
 
-import org.apache.jena.ontapi.OntModelFactory;
-import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
+import org.spdx.tools.schema.AbstractOwlRdfConverter;
 import org.spdx.tools.schema.OwlToJsonSchema;
 
+import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,78 +42,68 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class RdfSchemaToJsonSchema {
 
 	/**
+	 * Main entry point, terminates the JVM with the exit status of {@link #run(String[])}
 	 * @param args arg[0] RDF Schema file path; arg[1] output file path
 	 */
 	public static void main(String[] args) {
-		if (args.length != 2) {
-			System.err
-					.println("Invalid number of arguments");
+		System.exit(run(args));
+	}
+
+	/**
+	 * Runs the command logic and reports results to standard out/error,
+	 * without terminating the JVM - allows the logic to be unit tested.
+	 * @param args arg[0] RDF Schema file path; arg[1] output file path
+	 * @return process exit status, see {@link ExitCode}
+	 */
+	static int run(String[] args) {
+		if (args == null || args.length != 2) {
+			System.err.println("Invalid number of arguments");
 			usage();
-			return;
+			return ExitCode.USAGE_ERROR;
 		}
 		File fromFile = new File(args[0]);
 		if (!fromFile.exists()) {
-			System.err
-				.println("Input file "+args[0]+" does not exist.");
+			System.err.println("Input file "+args[0]+" does not exist.");
 			usage();
-			return;
+			return ExitCode.ERROR;
 		}
 		File toFile = new File(args[1]);
 		if (toFile.exists()) {
 			System.err.println("Output file "+args[1]+" already exists.");
 			usage();
-			return;
+			return ExitCode.ERROR;
 		}
-		InputStream is = null;
 		OntModel model = null;
-		try {
-			is = new FileInputStream(fromFile);
-			model = OntModelFactory.createModel(OntSpecification.OWL2_DL_MEM);
+		try (InputStream is = new FileInputStream(fromFile)) {
+			model = AbstractOwlRdfConverter.createOntModel();
 			model.read(is, "RDF/XML");
 		} catch (FileNotFoundException e) {
 			System.err.println("File not found for "+fromFile.getName());
-			return;
-		} finally {
-			if (is != null) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
+			return ExitCode.ERROR;
+		} catch (IOException e) {
+			System.err.println("Error closing input file stream: "+e.getMessage());
+		} catch (RuntimeException e) {
+			System.err.println("Unable to read ontology from file "+fromFile.getName()+": "+e.getMessage());
+			return ExitCode.ERROR;
 		}
-		OwlToJsonSchema owlToJson = new OwlToJsonSchema(model);
-		ObjectNode root = owlToJson.convertToJsonSchema();
-		ObjectMapper jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-
-		JsonGenerator jsonGenerator = null;
+		ObjectNode root;
 		try {
-		    jsonGenerator = jsonMapper.getFactory().createGenerator(new FileOutputStream(toFile));
-			jsonMapper.writeTree(jsonGenerator.useDefaultPrettyPrinter(), 
-					root);
+			root = new OwlToJsonSchema(model).convertToJsonSchema();
+		} catch (RuntimeException e) {
+			System.err.println("Error generating JSON schema: "+e.getMessage());
+			return ExitCode.ERROR;
+		}
+		ObjectMapper jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+		try (JsonGenerator jsonGenerator = jsonMapper.getFactory().createGenerator(toFile, JsonEncoding.UTF8)) {
+			jsonMapper.writeTree(jsonGenerator.useDefaultPrettyPrinter(), root);
 		} catch (JsonProcessingException e) {
 			System.err.println("JSON error "+e.getMessage());
-			return;
+			return ExitCode.ERROR;
 		} catch (IOException e) {
 			System.err.println("I/O error: "+e.getMessage());
-			return;
-		} finally {
-			if (Objects.nonNull(is)) {
-				try {
-					is.close();
-				} catch (IOException e) {
-					System.err.println("Error closing input file stream: "+e.getMessage());
-				}
-			}
-			if (Objects.nonNull(jsonGenerator)) {
-				try {
-				    jsonGenerator.close();
-				} catch (IOException e) {
-					System.err.println("Error closing output file stream: "+e.getMessage());
-				}
-			}
+			return ExitCode.ERROR;
 		}
-
+		return ExitCode.SUCCESS;
 	}
 
 	public static void usage() {

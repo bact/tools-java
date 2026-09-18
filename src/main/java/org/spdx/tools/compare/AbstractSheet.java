@@ -23,6 +23,7 @@ import java.awt.font.TextAttribute;
 import java.text.AttributedString;
 
 import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
@@ -50,6 +51,7 @@ public abstract class AbstractSheet {
 	static final String CHECKBOX_FONT_NAME = "Wingdings 2";
 	static final String CHECKBOX = "P";
 	private static final short MAX_ROW_LINES = 10;
+	private static final String TRUNCATED_MARKER = "[more...]";
 	protected CellStyle checkboxStyle;
 	protected CellStyle dateStyle;
 	protected CellStyle greenWrapped;
@@ -153,6 +155,19 @@ public abstract class AbstractSheet {
 		lastRowNum++;
 		Row row = sheet.createRow(lastRowNum);
 		return row;
+	}
+
+	/**
+	 * Truncates text that is longer than the maximum cell text length of the workbook format.
+	 * @param text text for a cell
+	 * @return text that fits in a cell, ending with a marker if it was shortened
+	 */
+	static String truncateCellText(String text) {
+		int max = SpreadsheetVersion.EXCEL2007.getMaxTextLength();
+		if (text == null || text.length() <= max) {
+			return text;
+		}
+		return text.substring(0, max - TRUNCATED_MARKER.length()) + TRUNCATED_MARKER;
 	}
 
 	/**

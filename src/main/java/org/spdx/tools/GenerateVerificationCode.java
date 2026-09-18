@@ -19,12 +19,14 @@
 package org.spdx.tools;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import javax.annotation.Nullable;
 
@@ -81,8 +83,11 @@ public class GenerateVerificationCode {
 			SpdxPackageVerificationCode verificationCode = generateVerificationCode(directoryPath, skippedRegex);
 			printVerificationCode(verificationCode);
 			return ExitCode.SUCCESS;
+		} catch (PatternSyntaxException ex) {
+			error("Invalid regular expression for the skipped files: "+ex.getMessage());
+			return ExitCode.USAGE_ERROR;
 		} catch (Exception ex) {
-			error("Error creating verification code: "+ex.getMessage());
+			System.out.println("Error creating verification code: "+ex.getMessage());
 			return ExitCode.ERROR;
 		}
 	}
@@ -115,17 +120,16 @@ public class GenerateVerificationCode {
 
 	/**
 	 * Collect files to be skipped
-	 * @param skippedRegex Regular Expression for file paths to be skipped
+	 * @param skippedRegex Regular Expression for file paths to be skipped. It is applied against the
+	 * path relative to the directory, with '/' as the separator on every platform
 	 * @param dir Directory to scan for collecting skipped files
 	 * @return
 	 */
 	private static File[] collectSkippedFiles(String skippedRegex, File dir) {
 		Pattern skippedPattern = Pattern.compile(skippedRegex);
 		List<File> skippedFiles = new ArrayList<>();
-		collectSkippedFiles(skippedPattern, skippedFiles, dir.getPath(), dir);
-		File[] retval = new File[skippedFiles.size()];
-		retval = skippedFiles.toArray(retval);
-		return retval;
+		collectSkippedFiles(skippedPattern, skippedFiles, dir.toPath(), dir);
+		return skippedFiles.toArray(new File[0]);
 	}
 
 	/**
@@ -133,28 +137,21 @@ public class GenerateVerificationCode {
 	 * @param skippedPattern
 	 * @param skippedFiles
 	 * @param rootPath
-	 * @param dir
-	 * @return
+	 * @param fileOrDir
 	 */
 	private static void collectSkippedFiles(Pattern skippedPattern,
-			List<File> skippedFiles, String rootPath, File dir) {
-		if (dir.isFile()) {
-			String relativePath = dir.getPath().substring(rootPath.length()+1);
+			List<File> skippedFiles, Path rootPath, File fileOrDir) {
+		if (fileOrDir.isFile()) {
+			String relativePath = rootPath.relativize(fileOrDir.toPath()).toString()
+					.replace(File.separatorChar, '/');
 			if (skippedPattern.matcher(relativePath).matches()) {
-				skippedFiles.add(dir);
+				skippedFiles.add(fileOrDir);
 			}
-		} else if (dir.isDirectory()) {
-			File[] children = dir.listFiles();
+		} else if (fileOrDir.isDirectory()) {
+			File[] children = fileOrDir.listFiles();
 			if (children != null) {
-				for (int i = 0; i < children.length; i++) {
-					if (children[i].isFile()) {
-						String relativePath = children[i].getPath().substring(rootPath.length()+1);
-						if (skippedPattern.matcher(relativePath).matches()) {
-							skippedFiles.add(children[i]);
-						}
-					} else if (children[i].isDirectory()) {
-						collectSkippedFiles(skippedPattern, skippedFiles, rootPath, children[i]);
-					}
+				for (File child : children) {
+					collectSkippedFiles(skippedPattern, skippedFiles, rootPath, child);
 				}
 			}
 		}
