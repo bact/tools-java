@@ -20,12 +20,9 @@ package org.spdx.tools;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Objects;
 
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -77,31 +74,9 @@ public class SpdxConverterTestV2 extends TestCase {
 	 */
 	protected void tearDown() throws Exception {
 		super.tearDown();
-		deleteDirAndFiles(tempDirPath);
+		TestFileUtils.deleteDirAndFiles(tempDirPath);
 	}
 	
-	public static void deleteDirAndFiles(Path dirOrFile) {
-		if (Objects.isNull(dirOrFile)) {
-			return;
-		}
-		if (!Files.exists(dirOrFile, LinkOption.NOFOLLOW_LINKS)) {
-			return;
-		}
-		if (Files.isDirectory(dirOrFile, LinkOption.NOFOLLOW_LINKS)) {
-			try (DirectoryStream<Path> files = Files.newDirectoryStream(dirOrFile)) {
-				for (Path file : files) {
-					deleteDirAndFiles(file);
-			      }
-			} catch (IOException e) {
-				System.err.println("IO error deleting directory or file "+e.getMessage());
-			}
-		}
-		try {
-			Files.delete(dirOrFile);
-		} catch (IOException e) {
-			System.err.println("IO error deleting directory or file "+e.getMessage());
-		}
-	}
 	
 	// Supported file types: JSON, XLS, XLSX, TAG, RDFXML, YAML or XML
 	
