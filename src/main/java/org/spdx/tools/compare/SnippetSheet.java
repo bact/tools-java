@@ -20,7 +20,9 @@ package org.spdx.tools.compare;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -137,18 +139,30 @@ public class SnippetSheet extends AbstractSheet {
 			headerCell.setCellValue(docNames.get(i));
 		}
 
+		List<SpdxDocument> docs = comparer.getSpdxDocuments();
 		SpdxSnippetComparer[] snippetComparers = comparer.getSnippetComparers();
-		Arrays.sort(snippetComparers, new Comparator<SpdxSnippetComparer>() {
-
-			@Override
-			public int compare(SpdxSnippetComparer o1, SpdxSnippetComparer o2) {
-				return o1.toString().compareTo(o2.toString());
-			}
-
-		});
-		for (int i = 0; i < snippetComparers.length; i++) {
-			addSnippetToSheet(snippetComparers[i], comparer.getSpdxDocuments());
+		Map<SpdxSnippetComparer, String> sortKeys = new IdentityHashMap<>();
+		for (SpdxSnippetComparer snippetComparer : snippetComparers) {
+			sortKeys.put(snippetComparer, sortKey(snippetComparer, docs));
 		}
+		Arrays.sort(snippetComparers, Comparator.comparing(sortKeys::get));
+		for (int i = 0; i < snippetComparers.length; i++) {
+			addSnippetToSheet(snippetComparers[i], docs);
+		}
+	}
+
+	/**
+	 * @return name and ID of the snippet from the first document that has it
+	 */
+	private static String sortKey(SpdxSnippetComparer snippetComparer, List<SpdxDocument> docs)
+			throws InvalidSPDXAnalysisException {
+		for (SpdxDocument doc : docs) {
+			SpdxSnippet snippet = snippetComparer.getDocSnippet(doc);
+			if (snippet != null) {
+				return snippet.getName().orElse("") + "\n" + snippet.getId();
+			}
+		}
+		return "";
 	}
 
 	/**
@@ -249,7 +263,7 @@ public class SnippetSheet extends AbstractSheet {
 				} else {
 					licenseCommentRow.createCell(FIRST_DOC_COL+i).setCellValue("");
 				}
-				copyrightRow.createCell(FIRST_DOC_COL+i).setCellValue(snippet.getCopyrightText());
+				copyrightRow.createCell(FIRST_DOC_COL+i).setCellValue(truncateCellText(snippet.getCopyrightText()));
 				SpdxFile snippetFromFile = snippet.getSnippetFromFile();
 				if (snippetFromFile != null) {
 					snippetFromFileRow.createCell(FIRST_DOC_COL+i).setCellValue(snippetFromFile.toString());

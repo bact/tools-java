@@ -65,22 +65,11 @@ public class DocumentRelationshipSheet extends AbstractSheet {
 						}
 						Optional<SpdxElement> relatedElement1 = r1.getRelatedSpdxElement();
 						Optional<SpdxElement> relatedElement2 = r2.getRelatedSpdxElement();
-						if (relatedElement1.isPresent() && !relatedElement2.isPresent()) {
-							return 1;
-						} else if (!relatedElement1.isPresent() && relatedElement2.isPresent()) {
-							return -1;
-						} else if (relatedElement1.get().equivalent(relatedElement2.get())) {
-							return 0;
+						if (!relatedElement1.isPresent() || !relatedElement2.isPresent()) {
+							return Boolean.compare(relatedElement1.isPresent(), relatedElement2.isPresent());
 						}
-						Optional<String> name1 = relatedElement1.get().getName();
-						Optional<String> name2 = relatedElement2.get().getName();
-						if (name1.isPresent() &&
-								name2.isPresent()) {
-							return name1.get().compareTo(
-									name2.get());
-						} else {
-							return relatedElement1.get().getId().compareTo(relatedElement2.get().getId());
-						}
+						return compareElements(relatedElement1.get().getName(), relatedElement1.get().getId(),
+								relatedElement2.get().getName(), relatedElement2.get().getId());
 					} else {
 						return 1;
 					}
@@ -93,6 +82,20 @@ public class DocumentRelationshipSheet extends AbstractSheet {
 			}
 			
 		}
+	}
+
+	/**
+	 * Total order for related elements: elements without a name first, then by name.
+	 * Elements without a name are ordered by ID.
+	 */
+	static int compareElements(Optional<String> name1, String id1, Optional<String> name2, String id2) {
+		if (name1.isPresent() && name2.isPresent()) {
+			return name1.get().compareTo(name2.get());
+		}
+		if (name1.isPresent() != name2.isPresent()) {
+			return Boolean.compare(name1.isPresent(), name2.isPresent());
+		}
+		return id1.compareTo(id2);
 	}
 
 	RelationshipComparator relationshipComparator = new RelationshipComparator();
@@ -127,7 +130,7 @@ public class DocumentRelationshipSheet extends AbstractSheet {
 		typeHeaderCell.setCellStyle(headerStyle);
 		typeHeaderCell.setCellValue(TYPE_COL_TEXT_TITLE);
 
-		for (int i = FIRST_RELATIONSHIP_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS; i++) {
+		for (int i = FIRST_RELATIONSHIP_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS + FIRST_RELATIONSHIP_COL; i++) {
 			sheet.setColumnWidth(i, FIRST_RELATIONSHIP_COL_WIDTH*256);
 			sheet.setDefaultColumnStyle(i, defaultStyle);
 			Cell cell = row.createCell(i);

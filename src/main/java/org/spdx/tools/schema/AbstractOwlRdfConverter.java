@@ -264,18 +264,37 @@ public class AbstractOwlRdfConverter {
 					if (property.equals(r.getProperty())) {
 						retval.add(r);
 					}
+				} else {
+					// restrictions are inherited from the named superclasses
+					retval.addAll(getRestrictionsFromSuperclasses(superClass, property));
 				}
 			});
 			return retval;
+		}
+
+		/**
+		 * Properties listed by the model are not typed as object or data properties,
+		 * only those are able to list the restrictions that refer to them
+		 * @return the object or data property with the same URI, or null if there is none
+		 */
+		private org.apache.jena.ontapi.model.OntRelationalProperty toRelationalProperty(OntProperty property) {
+			if (property instanceof org.apache.jena.ontapi.model.OntRelationalProperty) {
+				return (org.apache.jena.ontapi.model.OntRelationalProperty) property;
+			}
+			if (!property.isURIResource()) {
+				return null;
+			}
+			org.apache.jena.ontapi.model.OntRelationalProperty result = model.getObjectProperty(property.getURI());
+			return Objects.nonNull(result) ? result : model.getDataProperty(property.getURI());
 		}
 
 		public PropertyRestrictions(OntProperty property) {
 			Objects.requireNonNull(property, "Missing required property");
 			this.property = property;
 			List<OntClass.Restriction> propertyRestrictions = new ArrayList<>();
-			if (property instanceof org.apache.jena.ontapi.model.OntRelationalProperty) {
-				((org.apache.jena.ontapi.model.OntRelationalProperty) property)
-					.referringRestrictions().forEach(propertyRestrictions::add);
+			org.apache.jena.ontapi.model.OntRelationalProperty relationalProperty = toRelationalProperty(property);
+			if (Objects.nonNull(relationalProperty)) {
+				relationalProperty.referringRestrictions().forEach(propertyRestrictions::add);
 			}
 			interpretRestrictions(propertyRestrictions);
 		}
@@ -367,6 +386,14 @@ public class AbstractOwlRdfConverter {
 	
 	OntID ontology;
 
+	/**
+	 * @return an empty model to read the SPDX ontology into. The ontology has restrictions
+	 * on annotation properties (e.g. rdfs:comment), which only the OWL Full profile accepts.
+	 */
+	public static OntModel createOntModel() {
+		return org.apache.jena.ontapi.OntModelFactory.createModel(org.apache.jena.ontapi.OntSpecification.OWL2_FULL_MEM);
+	}
+
 	public AbstractOwlRdfConverter(OntModel model) {
 		Objects.requireNonNull(model, "Model must not be null");
 		this.model = model;
@@ -383,10 +410,12 @@ public class AbstractOwlRdfConverter {
 		intersectionOfProperty = model.createProperty("http://www.w3.org/2002/07/owl#intersectionOf");
 		firstResource = model.createProperty("http://www.w3.org/1999/02/22-rdf-syntax-ns#first");
 		restResource = model.createProperty("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest");
-		ontology = model.getID();
-		if (Objects.isNull(ontology)) {
+		// getID() creates an ontology header when there is none, so check for it first
+		if (!model.contains(null, model.createProperty("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+				model.createResource("http://www.w3.org/2002/07/owl#Ontology"))) {
 			throw new RuntimeException("No ontologies defined in RDF OWL");
 		}
+		ontology = model.getID();
 	}
 	
 	public PropertyRestrictions getPropertyRestrictions(OntClass ontClass, OntProperty property) {

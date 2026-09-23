@@ -22,18 +22,16 @@ package org.spdx.tools;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spdx.core.InvalidSPDXAnalysisException;
-import org.spdx.library.ModelCopyManager;
 import org.spdx.library.model.v2.SpdxDocument;
 import org.spdx.spreadsheetstore.SpreadsheetException;
-import org.spdx.storage.IModelStore;
-import org.spdx.storage.simple.InMemSpdxStore;
 import org.spdx.tools.compare.MultiDocumentSpreadsheet;
 import org.spdx.utility.compare.SpdxCompareException;
 import org.spdx.utility.compare.SpdxComparer;
@@ -84,7 +82,7 @@ public class CompareSpdxDocs {
 			return ExitCode.USAGE_ERROR;
 		}
 		if (args.length > MAX_ARGS) {
-			System.out.println("Too many SPDX documents specified.  Must be less than "+String.valueOf(MAX_ARGS-1)+" document filenames");
+			System.out.println("Too many SPDX documents specified.  Must be at most "+String.valueOf(MAX_ARGS-1)+" document filenames");
 			usage();
 			return ExitCode.USAGE_ERROR;
 		}
@@ -117,18 +115,20 @@ public class CompareSpdxDocs {
 		for (int i = 1; i < args.length; i++) {
 			try {
 				addDocToComparer(compareDocs, args[i], docNames, verificationErrors);
-			} catch (InvalidSPDXAnalysisException | IOException | InvalidFileNameException e) {
+			} catch (InvalidSPDXAnalysisException | IOException | InvalidFileNameException | RuntimeException e) {
 				throw new OnlineToolException("Error opening SPDX document "+args[i]+": "+e.getMessage());
 			}
 		}
 		List<String> normalizedDocNames = normalizeDocNames(docNames);
 		MultiDocumentSpreadsheet outSheet = null;
+		boolean success = false;
 		try {
 			outSheet = new MultiDocumentSpreadsheet(outputFile, true, false);
 			outSheet.importVerificationErrors(verificationErrors, normalizedDocNames);
 			SpdxComparer comparer = new SpdxComparer();
 			comparer.compare(compareDocs);
 			outSheet.importCompareResults(comparer, normalizedDocNames);
+			success = true;
 		} catch (SpreadsheetException e) {
 			throw new OnlineToolException("Unable to create output spreadsheet: "+e.getMessage());
 		} catch (InvalidSPDXAnalysisException e) {
@@ -143,10 +143,16 @@ public class CompareSpdxDocs {
 					logger.warn("Warning - error closing spreadsheet: "+e.getMessage());
 				}
 			}
+			if (!success) {
+				// don't leave a partial workbook that blocks a retry
+				try {
+					Files.deleteIfExists(outputFile.toPath());
+				} catch (IOException e) {
+					logger.warn("Warning - unable to delete incomplete output file: "+e.getMessage());
+				}
+			}
 		}
 	}
-	
-	
 
 	/**
 	 * Adds all SPDX documents found in the file or directory to the compareDocs list
@@ -174,14 +180,8 @@ public class CompareSpdxDocs {
 				}
 			}
 			if (dupDocUri) {
-				// Make a unique URI by appending a UUID
-				String newUri = doc.getDocumentUri() + UUID.randomUUID();
-				warnings.add("Duplicate Document URI: " + doc.getDocumentUri() + " changed to " + newUri);
-				IModelStore newStore = new InMemSpdxStore();
-				ModelCopyManager copyManager = new ModelCopyManager();
-				SpdxDocument newDoc = new SpdxDocument(newStore, newUri, copyManager, false);
-				newDoc.copyFrom(doc);
-				doc = newDoc;
+				warnings.add("Duplicate Document URI: " + doc.getDocumentUri()
+						+ ". Document namespaces should be unique.");
 			}
 			compareDocs.add(doc);
 			if (!warnings.isEmpty()) {
@@ -190,10 +190,16 @@ public class CompareSpdxDocs {
 			verificationErrors.add(warnings);
 			docNames.add(filePath);
 		} else if (spdxDocOrDir.isDirectory()) {
-			for (File file:spdxDocOrDir.listFiles()) {
+			File[] files = spdxDocOrDir.listFiles();
+			if (files == null) {
+				throw new IOException("Unable to list the files in directory "+filePath);
+			}
+			// listFiles order is filesystem dependent
+			Arrays.sort(files);
+			for (File file:files) {
 				try {
 					addDocToComparer(compareDocs, file.getPath(), docNames, verificationErrors);
-				} catch (InvalidSPDXAnalysisException | IOException | InvalidFileNameException e) {
+				} catch (InvalidSPDXAnalysisException | IOException | InvalidFileNameException | RuntimeException e) {
 					System.out.println("Error deserializing "+file+".  Skipping.");
 					continue;
 				}
@@ -207,7 +213,7 @@ public class CompareSpdxDocs {
      * @param uriFilePaths Un-normalized file paths or URIs
      * @return List of normalized doc names
      */
-    private static List<String> normalizeDocNames(List<String> uriFilePaths) {
+    static List<String> normalizeDocNames(List<String> uriFilePaths) {
         List<String> docNames = new ArrayList<>();
         if (uriFilePaths.size() < 1) {
         	return docNames;
@@ -228,13 +234,17 @@ public class CompareSpdxDocs {
                 }
             }
         }
-        // Back up looking for the first path separator
-        for (int i = commonPrefixIndex; i >= 0; i--) {
-        	if (uriFilePaths.get(0).charAt(i) == '/' || uriFilePaths.get(0).charAt(i) == '\\') {
-        		commonPrefixIndex = i+1;
+        // Back up to just after the last path separator in the common prefix,
+        // so a name is never cut in the middle of a path segment
+        int lastSeparator = -1;
+        for (int i = commonPrefixIndex - 1; i >= 0; i--) {
+        	char ch = uriFilePaths.get(0).charAt(i);
+        	if (ch == '/' || ch == '\\') {
+        		lastSeparator = i;
         		break;
         	}
         }
+        commonPrefixIndex = lastSeparator + 1;
         for (String uriFilePath:uriFilePaths) {
             docNames.add(uriFilePath.substring(commonPrefixIndex).replace("\\", "/"));
         }

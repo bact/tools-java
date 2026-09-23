@@ -10,10 +10,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.jena.ontapi.OntModelFactory;
-import org.apache.jena.ontapi.OntSpecification;
 import org.apache.jena.ontapi.model.OntModel;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import junit.framework.TestCase;
@@ -29,8 +28,7 @@ public class OwlToJsonContextTest extends TestCase {
 	public void testConvertToContext() throws IOException {
 		OwlToJsonContext otjc = null;
 		try (InputStream is = new FileInputStream(new File(OWL_FILE_PATH))) {
-			OntModel model = OntModelFactory
-					.createModel(OntSpecification.OWL2_DL_MEM);
+			OntModel model = AbstractOwlRdfConverter.createOntModel();
 			model.read(is, "RDF/XML");
 			otjc = new OwlToJsonContext(model);
 		}
@@ -42,5 +40,14 @@ public class OwlToJsonContextTest extends TestCase {
 
 		assertTrue(context.size() > 0);
 		assertTrue(context.has("Document"));
+		// the properties of the ontology, not only the fixed entries
+		assertTrue("too few entries: " + context.size(), context.size() > 80);
+		JsonNode annotations = context.get("annotations");
+		assertEquals("spdx:annotations", annotations.get("@id").asText());
+		assertEquals("spdx:Annotation", annotations.get("@type").asText());
+		assertEquals("@set", annotations.get("@container").asText());
+		assertEquals("xs:hexBinary", context.get("checksumValue").get("@type").asText());
+		// rdfs:comment is an annotation property, its type is set explicitly
+		assertEquals("xs:string", context.get("comment").get("@type").asText());
 	}
 }

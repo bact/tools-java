@@ -131,7 +131,7 @@ public class DocumentAnnotationSheet extends AbstractSheet {
 		commentHeaderCell.setCellStyle(headerStyle);
 		commentHeaderCell.setCellValue(COMMENT_COL_TEXT_TITLE);
 
-		for (int i = FIRST_DATE_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS; i++) {
+		for (int i = FIRST_DATE_COL; i < MultiDocumentSpreadsheet.MAX_DOCUMENTS + FIRST_DATE_COL; i++) {
 			sheet.setColumnWidth(i, DATE_COL_WIDTH*256);
 			sheet.setDefaultColumnStyle(i, defaultStyle);
 			Cell cell = row.createCell(i);

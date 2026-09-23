@@ -20,12 +20,9 @@ package org.spdx.tools;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Objects;
 
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -77,30 +74,7 @@ public class SpdxConverterTestV2 extends TestCase {
 	 */
 	protected void tearDown() throws Exception {
 		super.tearDown();
-		deleteDirAndFiles(tempDirPath);
-	}
-	
-	public static void deleteDirAndFiles(Path dirOrFile) {
-		if (Objects.isNull(dirOrFile)) {
-			return;
-		}
-		if (!Files.exists(dirOrFile, LinkOption.NOFOLLOW_LINKS)) {
-			return;
-		}
-		if (Files.isDirectory(dirOrFile, LinkOption.NOFOLLOW_LINKS)) {
-			try (DirectoryStream<Path> files = Files.newDirectoryStream(dirOrFile)) {
-				for (Path file : files) {
-					deleteDirAndFiles(file);
-			      }
-			} catch (IOException e) {
-				System.err.println("IO error deleting directory or file "+e.getMessage());
-			}
-		}
-		try {
-			Files.delete(dirOrFile);
-		} catch (IOException e) {
-			System.err.println("IO error deleting directory or file "+e.getMessage());
-		}
+		TestFileUtils.deleteDirAndFiles(tempDirPath);
 	}
 	
 	// Supported file types: JSON, XLS, XLSX, TAG, RDFXML, YAML or XML
@@ -411,5 +385,33 @@ public class SpdxConverterTestV2 extends TestCase {
 		assertFalse(noDetailModel.contains(noDetailMplLicense, detailLicenseTextProperty));
 		Resource noDetailException = noDetailModel.createResource(exceptionUri);
 		assertFalse(noDetailModel.contains(noDetailException, detailExceptionTextProperty));
+	}
+
+	public void testFailedConversionDoesNotLeavePartialOutput() throws Exception {
+		Path badInput = tempDirPath.resolve("bad.spdx.json");
+		Files.write(badInput, "not json".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		Path output = tempDirPath.resolve("out.spdx.yaml");
+		try {
+			SpdxConverter.convert(badInput.toString(), output.toString(), SerFileType.JSON, SerFileType.YAML);
+			fail("expected SpdxConverterException");
+		} catch (SpdxConverterException e) {
+			// expected
+		}
+		assertFalse("partial output left behind", Files.exists(output));
+		// a retry to the same output path is accepted
+		SpdxConverter.convert(TEST_JSON_FILE_PATH, output.toString(), SerFileType.JSON, SerFileType.YAML);
+		assertTrue(Files.size(output) > 0);
+	}
+
+	public void testMissingInputCreatesNoOutput() throws Exception {
+		Path output = tempDirPath.resolve("never.spdx.yaml");
+		try {
+			SpdxConverter.convert(tempDirPath.resolve("missing.spdx.json").toString(), output.toString(),
+					SerFileType.JSON, SerFileType.YAML);
+			fail("expected SpdxConverterException");
+		} catch (SpdxConverterException e) {
+			// expected
+		}
+		assertFalse(Files.exists(output));
 	}
 }

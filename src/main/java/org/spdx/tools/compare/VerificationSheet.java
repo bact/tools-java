@@ -116,6 +116,7 @@ public class VerificationSheet extends AbstractSheet {
 				}
 			}
 		}
+		lastRowNum = Math.max(lastRowNum, lastRowCreated);
 	}
 
 }
